@@ -1,0 +1,1 @@
+x86_64-w64-mingw32-g++ -std=c++17 -g -Wall src/main.cpp src/init_window.cpp -o build/win/build-debug -static -luser32 -mwindows

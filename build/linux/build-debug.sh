@@ -1,0 +1,1 @@
+g++ -std=c++17 -g -Wall src/main.cpp src/init_window.cpp -o build/linux/build-debug -lX11
