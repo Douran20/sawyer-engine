@@ -1,0 +1,9 @@
+
+build-debug
+# exclude the window file.
+*.exe
+
+.zed
+Xlib.h
+winapi.h
+winuser.h

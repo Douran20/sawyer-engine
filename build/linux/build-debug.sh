@@ -1,1 +1,1 @@
-g++ -std=c++17 -g -Wall src/main.cpp src/init_window.cpp -o build/linux/build-debug -lX11
+g++ -std=c++17 -g -Wall src/main.cpp src/window_handler.cpp src/sawyer-engine.cpp src/engine-logic.cpp -o build/linux/build-debug -lX11 -lXrandr

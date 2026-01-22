@@ -1,23 +1,25 @@
-#include "window_handler.h"
+// * TODO - implentent my own way of grabbing the monitor res so we dont need a x and win32 way of getting res.
+
+#include "window_handler.hpp"
 
 #if __linux__
-
 static bool x11isrunning = true;
 // x_display is io for the x11 service.
 // it sends request to x11 and x11 execute these request.
 // so it can handle userinputs and also draws to the screen
-Display *x_display;
+Display *x_display = XOpenDisplay(NULL);
 Window x_window;
 // its in the name. it collects events from the users and ?? sends them to the
 // display.
 XEvent x_event;
 // x_screen is monitor
-int x_screen;
+int x_screen = DefaultScreen(x_display);
+Window x_root = DefaultRootWindow(x_display);
 
 // if system is on linux use the x11 service
 // later need to figure out a setup to be able to draw on the window
 void init_x11window(int posx, int posy, int width, int height, std::string title) {
-  x_display = XOpenDisplay(NULL);
+  //x_display = XOpenDisplay(NULL);
   if (x_display == NULL) {
     std::cout << stderr << "Cannot open Xdisplay\n";
     exit(1);
@@ -25,7 +27,7 @@ void init_x11window(int posx, int posy, int width, int height, std::string title
 
   // this means what ever window the user is activately on.
   // so we tell x11 to make a window on the active display.
-  x_screen = DefaultScreen(x_display);
+  //x_screen = DefaultScreen(x_display);
   if (x_screen == 1) { // idk if DefaultScreen returns a true or false or if it
                        // returns what screen its on
     std::cout << stderr << " - Cannot Grap Current Screen\n";
@@ -41,7 +43,7 @@ void init_x11window(int posx, int posy, int width, int height, std::string title
 
   // XCreateWindow returns the window id
   x_window = XCreateWindow(
-      x_display, RootWindow(x_display, x_screen), posx, posy, width, height, 1,
+      x_display, x_root, posx, posy, width, height, 1,
       DefaultDepth(x_display, x_screen), InputOutput,
       DefaultVisual(x_display, x_screen), x_mask, &x_attributes);
   if (x_window == 0) {
@@ -58,13 +60,15 @@ void x_pollevents() {
   // successfully
   Atom wmDeleteMessage = XInternAtom(x_display, "WM_DELETE_WINDOW", 0);
   XSetWMProtocols(x_display, x_window, &wmDeleteMessage, 1);
-  while (XNextEvent(x_display, &x_event) == 0) {
+  while (XPending(x_display) > 0) {
+    XNextEvent(x_display, &x_event);
     switch (x_event.type) {
     case ClientMessage:
       if ((Atom)x_event.xclient.data.l[0] == wmDeleteMessage) {
         x11isrunning = false;
         return;
       }
+      break;
     }
   }
 }
@@ -74,12 +78,29 @@ void close_x11window() {
   XDestroyWindow(x_display, x_window);
   // xclosedisplay for true returns 0
   XCloseDisplay(x_display);
-  std::cout << "closed successfully";
   exit(0);
 }
 
 bool x11_shouldclose() {
   return !x11isrunning;
+}
+int X11GetMonitorWidth() {
+  XRRScreenResources* res = XRRGetScreenResourcesCurrent(x_display, x_root);
+  XRRCrtcInfo* crtc = XRRGetCrtcInfo(x_display, res, res->crtcs[0]);
+  int width = crtc->width;
+  
+  XRRFreeCrtcInfo(crtc);
+  XRRFreeScreenResources(res);
+  return width;
+}
+int X11GetMonitorHeight() {
+  XRRScreenResources* res = XRRGetScreenResourcesCurrent(x_display, x_root);
+  XRRCrtcInfo* crtc = XRRGetCrtcInfo(x_display, res, res->crtcs[0]);
+  int height = crtc->height;
+  
+  XRRFreeCrtcInfo(crtc);
+  XRRFreeScreenResources(res);
+  return height;
 }
 #endif
 #if _WIN32
@@ -144,9 +165,76 @@ void win32_pollevents() {
     DispatchMessage(&msg);
   }
 }
-
-bool win32_shouldclose() {
-    return !win32isrunning;
+int Win32GetMonitorWidth() {
+  HMONITOR hMonitor = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY);
+  MONITORINFO info = {};
+  info.cbSize = sizeof(MONITORINFO);
+  
+  if (GetMonitorInfo(hMonitor, &info)) {
+    int width = info.rcMonitor.right - info.rcMonitor.left;
+    return width;
+  }
+  exit(1);
 }
-
+int Win32GetMonitorHeight() {
+  HMONITOR hMonitor = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY);
+  MONITORINFO info = {};
+  info.cbSize = sizeof(MONITORINFO);
+  
+  if (GetMonitorInfo(hMonitor, &info)) {
+    int height = info.rcMonitor.bottom - info.rcMonitor.top;
+    return height;
+  }
+  exit(1);
+}
 #endif
+
+void InitWindow(int posx, int posy, int width, int height, std::string title) {
+  // for some reason the window size is diff across both even tho they use the same value???
+  // also it isnt consistant on linux?
+  #if __linux__
+  init_x11window(posx,posy,width,height,title);
+  #endif
+  #if _WIN32
+  init_win32window(posx,posy,width,height,title.c_str());
+  #endif
+}
+void WindowPollEvents() {
+  #if __linux__
+  x_pollevents();
+  #endif
+  #if _WIN32
+  win32_pollevents();
+  #endif
+}
+bool WindowShouldClose() {
+  #if __linux__
+  return !x11isrunning;
+  #endif
+  #if _WIN32
+  return !win32isrunning;
+  #endif
+}
+void WindowClose() {
+  std::cout << "closed successfully\n";
+  #if __linux__
+  close_x11window();
+  #endif
+}
+int GetMonitorWidth() {
+  // the linux implenation is odd. will rework later.
+  #if __linux__
+  return X11GetMonitorWidth();
+  #endif
+  #if _WIN32
+  return Win32GetMonitorWidth();
+  #endif
+}
+int GetMonitorHeight() {
+  #if __linux__
+  return X11GetMonitorHeight();
+  #endif
+  #if _WIN32
+  return Win32GetMonitorHeight();
+  #endif
+}
