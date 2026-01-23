@@ -4,10 +4,15 @@
 #include <random>
 #include <thread>
 #include <chrono>
+#include <iostream>
 #if __linux__
 #include <time.h>
 #endif
-void msDelay(unsigned int milliseconds);
+void SawyerDelay(float seconds);
 double GetTime();
 int frameindex(int tfps, int xfps);
-int GetRandomValue(int min, int max);
+// this just loops over rngtable()
+int GetRandomValue();
+// DO NOT SET THE TARGET FPS OUTSIDE OF THE RENDER LOOP
+void TargetFps(float tfps);
+void FpsInfo();

@@ -1,5 +1,7 @@
 // * TODO - implentent my own way of grabbing the monitor res so we dont need a x and win32 way of getting res.
-
+// * TODO - need inputs
+// DONE * TODO - i need to figure out how to draw into the window
+// added buffer implentation for drawing.
 #include "window_handler.hpp"
 
 #if __linux__
@@ -17,11 +19,10 @@ int x_screen = DefaultScreen(x_display);
 Window x_root = DefaultRootWindow(x_display);
 
 // if system is on linux use the x11 service
-// later need to figure out a setup to be able to draw on the window
-void init_x11window(int posx, int posy, int width, int height, std::string title) {
+Window init_x11window(int posx, int posy, int width, int height, std::string title) {
   //x_display = XOpenDisplay(NULL);
   if (x_display == NULL) {
-    std::cout << stderr << "Cannot open Xdisplay\n";
+    std::cout << "Cannot open Xdisplay\n";
     exit(1);
   }
 
@@ -30,7 +31,7 @@ void init_x11window(int posx, int posy, int width, int height, std::string title
   //x_screen = DefaultScreen(x_display);
   if (x_screen == 1) { // idk if DefaultScreen returns a true or false or if it
                        // returns what screen its on
-    std::cout << stderr << " - Cannot Grap Current Screen\n";
+    std::cout << " - Cannot Grap Current Screen\n";
     exit(1);
   }
 
@@ -47,32 +48,70 @@ void init_x11window(int posx, int posy, int width, int height, std::string title
       DefaultDepth(x_display, x_screen), InputOutput,
       DefaultVisual(x_display, x_screen), x_mask, &x_attributes);
   if (x_window == 0) {
-    std::cout << "Failed to create a window";
+    std::cout << "Failed to create a window\n";
     exit(1);
   }
-
+  std::cout << "Window ID = " << x_window << std::endl << std::flush;
   XStoreName(x_display, x_window, title.c_str()); // this is window title
+  XSelectInput(x_display, x_window, ExposureMask);
   XMapWindow(x_display, x_window);        // this displays the window
+  
+  return x_window;
 }
 
-void x_pollevents() {
+// before for somereason x_pollevents caused the os to freeze when ran.
+// the suspect is prob the atom if i had to guess.
+static void x_pollevents() {
   // a pointer so i can say later to if x thing happens close program
   // successfully
-  Atom wmDeleteMessage = XInternAtom(x_display, "WM_DELETE_WINDOW", 0);
-  XSetWMProtocols(x_display, x_window, &wmDeleteMessage, 1);
-  while (XPending(x_display) > 0) {
-    XNextEvent(x_display, &x_event);
-    switch (x_event.type) {
-    case ClientMessage:
-      if ((Atom)x_event.xclient.data.l[0] == wmDeleteMessage) {
-        x11isrunning = false;
-        return;
-      }
-      break;
-    }
+ 	Atom wmDeleteMessage = XInternAtom(x_display, "WM_DELETE_WINDOW", false);
+  int x_protocol = XSetWMProtocols(x_display, x_window, &wmDeleteMessage, 1);
+  if (x_protocol < 0) {
+    std::cout << "FAILED TO CREATE PROTOCOLS\n";
+    exit(1);
   }
+  while (XPending(x_display) > 0)
+ 	{
+    XNextEvent(x_display, &x_event);
+    switch (x_event.type)
+		{
+ 			//case ButtonPress:
+        //  x11isrunning = false;
+      return;
+      case ClientMessage:
+        if ((Atom)x_event.xclient.data.l[0] == wmDeleteMessage) 
+        {
+          x11isrunning = false;
+          return;
+        }
+        break;
+		}
+ 	}
 }
+XWindowAttributes xwindow_screen(Window window){
+  XWindowAttributes window_screen;
+  XGetWindowAttributes(x_display, window, &window_screen);
+  return window_screen;
+}
+  // pictures to my understanding is how you draw to the window.
+  Pixmap back_buffer;
+  Picture back_xbuffer;
+  Picture front_xbuffer;
 
+void x_render_buffers(Window window) {
+  XRenderPictFormat *render_format = XRenderFindVisualFormat(x_display, DefaultVisual(x_display, x_screen));
+  back_buffer = XCreatePixmap(x_display, x_window, xwindow_screen(window).width, xwindow_screen(window).height, DefaultDepth(x_display, x_screen));
+  
+  back_xbuffer = XRenderCreatePicture(x_display, back_buffer , render_format, 0, NULL);
+  front_xbuffer = XRenderCreatePicture(x_display, x_window , render_format, 0, NULL);
+  
+  XRenderColor background = {0x00, 0x00, 0x00, 0x00}; // black
+  XRenderFillRectangle(x_display, PictOpSrc, back_xbuffer, &background, 0, 0, xwindow_screen(window).width, xwindow_screen(window).height);
+}
+void x_clear_buffers(Window window) {
+  XRenderComposite(x_display, PictOpSrc, back_xbuffer, None, front_xbuffer, 0, 0, 0, 0, 0, 0, xwindow_screen(window).width, xwindow_screen(window).height);
+  XFlush(x_display);
+}
 void close_x11window() {
   XUnmapWindow(x_display, x_window);
   XDestroyWindow(x_display, x_window);
@@ -80,7 +119,6 @@ void close_x11window() {
   XCloseDisplay(x_display);
   exit(0);
 }
-
 bool x11_shouldclose() {
   return !x11isrunning;
 }
@@ -165,6 +203,15 @@ void win32_pollevents() {
     DispatchMessage(&msg);
   }
 }
+
+void win32_renderbuffer(){
+  
+}
+
+void win32_clearbuffer(){
+  
+}
+
 int Win32GetMonitorWidth() {
   HMONITOR hMonitor = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY);
   MONITORINFO info = {};
@@ -189,11 +236,11 @@ int Win32GetMonitorHeight() {
 }
 #endif
 
-void InitWindow(int posx, int posy, int width, int height, std::string title) {
+int InitWindow(int posx, int posy, int width, int height, std::string title) {
   // for some reason the window size is diff across both even tho they use the same value???
   // also it isnt consistant on linux?
   #if __linux__
-  init_x11window(posx,posy,width,height,title);
+  return init_x11window(posx,posy,width,height,title);
   #endif
   #if _WIN32
   init_win32window(posx,posy,width,height,title.c_str());
@@ -217,12 +264,12 @@ bool WindowShouldClose() {
 }
 void WindowClose() {
   std::cout << "closed successfully\n";
+  SawyerDelay(0.05f); // 50 ms
   #if __linux__
   close_x11window();
   #endif
 }
 int GetMonitorWidth() {
-  // the linux implenation is odd. will rework later.
   #if __linux__
   return X11GetMonitorWidth();
   #endif
@@ -236,5 +283,15 @@ int GetMonitorHeight() {
   #endif
   #if _WIN32
   return Win32GetMonitorHeight();
+  #endif
+}
+void WindowRenderBuffer(Window window) {
+  #if __linux__
+  x_render_buffers(window);
+  #endif
+}
+void WindowClearBuffer(Window window) {
+  #if __linux__
+  x_clear_buffers(window);
   #endif
 }
