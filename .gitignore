@@ -7,3 +7,4 @@ build-debug
 Xlib.h
 winapi.h
 winuser.h
+.gitignore

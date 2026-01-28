@@ -1,1 +1,1 @@
-x86_64-w64-mingw32-g++ -std=c++17 -g -Wall src/main.cpp src/window_handler.cpp src/sawyer-engine.cpp src/engine-logic.cpp -o build/win/build-debug -static -luser32 -mwindows
+x86_64-w64-mingw32-g++ -std=c++17 -g -Wall src/main.cpp src/window_handler.cpp src/sawyer-engine.cpp src/engine-logic.cpp src/render-handler.cpp -o build/win/build-debug -static -luser32 -mwindows

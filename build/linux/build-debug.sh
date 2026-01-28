@@ -1,1 +1,1 @@
-g++ -std=c++17 -g -Wall src/main.cpp src/window_handler.cpp src/sawyer-engine.cpp src/engine-logic.cpp -o build/linux/build-debug -lX11 -lXrandr -lXrender
+g++ -std=c++17 -g -Wall src/main.cpp src/window_handler.cpp src/sawyer-engine.cpp src/engine-logic.cpp src/render-handler.cpp -o build/linux/build-debug -lX11 -lXrandr -lXrender
